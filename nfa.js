@@ -1,61 +1,52 @@
 class NFA {
     constructor(tuple) {
-        this.tuple = tuple;
+        this.startState = tuple["start-state"];
+        this.finalStates = tuple["final-states"];
+        this.delta = tuple.delta;
     }
 
     doesAccept(strings) {
-        let initialSate = this.tuple["start-state"];
-        let acceptStates = Array.from(strings).reduce(this.updateState.bind(this), Array(initialSate));
-        acceptStates = this.removeDeadMachine(acceptStates);
+        let acceptStates = Array.from(strings).reduce(this.updateStates.bind(this), Array(this.startState));
         acceptStates = this.getStatesByEpsilon(acceptStates);
-        return acceptStates.some(acceptState => this.tuple["final-states"].includes(acceptState));
+        return acceptStates.some(acceptState => this.finalStates.includes(acceptState));
     }
 
-    updateState(machineStates, string) {
-        machineStates = this.removeDeadMachine(machineStates);
+    updateStates(machineStates, string) {
         machineStates = this.getStatesByEpsilon(machineStates);
         return machineStates.flatMap(machineState => {
-            let state = this.tuple.delta[machineState]
-            return state && state[string];
+            let newState = this.delta[machineState];
+            return newState && newState[string];
         });
     }
 
-    getStatesByEpsilon(epsilonStates) {
-        let machineStates = epsilonStates;
-        return this.addEpsilonWithMachineState(epsilonStates, machineStates);
-
-    }
-
-    addEpsilonWithMachineState(epsilonStates, machineStates) {
+    getStatesByEpsilon(epsilonStates, machineStates = epsilonStates) {
         if (epsilonStates.length <= 0) {
             return machineStates;
         }
         let newStates = epsilonStates.flatMap(epsilon => {
-            if (epsilon && this.isEpsilonState(epsilon)) {
-                return this.getEpsilonStates(epsilon);
-            }
+            return epsilon && this.hasEpsilon(epsilon) && this.getEpsilonStates(epsilon);
         });
-        newStates = this.removeDeadMachine(newStates);
-        newStates = this.removeDuplicateMachine(newStates, machineStates);
-        machineStates = machineStates.concat(newStates);
-        return this.addEpsilonWithMachineState(newStates, machineStates);
+        newStates = this.removeDeadStates(newStates);
+        newStates = this.removeResolvedStates(newStates, machineStates);
+        machineStates.push(...newStates);
+        return this.getStatesByEpsilon(newStates, machineStates);
     }
 
-    removeDuplicateMachine(states, machineStates) {
+    removeResolvedStates(states, machineStates) {
         return states.filter(state => !machineStates.includes(state));
     }
 
     getEpsilonStates(machineState) {
-        return this.tuple.delta[machineState].e;
+        return this.delta[machineState].e;
     }
 
-    isEpsilonState(machineState) {
-        let epsilonState = this.tuple.delta[machineState];
+    hasEpsilon(machineState) {
+        let epsilonState = this.delta[machineState];
         return epsilonState && Object.keys(epsilonState).includes("e");
     }
 
-    removeDeadMachine(machineStates) {
-        return machineStates.filter(machineState => machineState != undefined);
+    removeDeadStates(machineStates) {
+        return machineStates.filter(machineState => machineState);
     }
 }
 
